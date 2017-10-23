@@ -80,7 +80,7 @@ void print(const char * name, const char *output) {
 			else
 				printf("current working directory2 is: %s\n", cwd);
 
-			printf("[%s]\n", entry->d_name);
+			printf("%s\n", entry->d_name);
 			strcpy(wDir, entry->d_name);
 
 			print(entry->d_name, output);
@@ -102,15 +102,24 @@ void print(const char * name, const char *output) {
 						printf("current working directory3 is: %s\n", cwd);
 
 					//opening file
-					fp = fopen(entry->d_name, "r");
+					//
+					char * new_str ;
+					if((new_str = (char*) malloc(strlen(wDir)+strlen(entry->d_name)+1)) != NULL){
+   					 new_str[0] = '\0';   // ensures the memory is an empty string
+   					 strcat(new_str,wDir);
+    				 strcat(new_str,entry->d_name);
+					} else {
+    					fprintf(stdout,"malloc failed!\n");
+						}
+					fp = fopen(new_str, "r");
 					if (fp == NULL) {
 						printf("Could not open file %s\n", entry->d_name);
 						exit(0);
 					}
 					//printf("The output name is %s\n",output);
-					counter = csv_line_count(fp);
+					/*counter = csv_line_count(fp);
 					printf("The file %s has %d lines\n ", entry->d_name,
-							counter);
+							counter);*/
 					//fclose(fp);
 				}
 			}
