@@ -68,7 +68,7 @@ void getSubDirect(char * dirName,int fileCheck,int dirCheck)
               } else {
                 fprintf(stdout,"malloc failed!\n");
               }
-              printf ("%d: %s\n", dp->d_type,dp->d_name);
+              printf ("%d: %s\n", dp->d_type,new_str);
             }
           } 
         }
