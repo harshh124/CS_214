@@ -1,4 +1,5 @@
 #include "Sorter.c"
+#include "Find.c"
 #include <string.h>
 char *strtok_new(char * string, char const * delimiter);
 
@@ -6,11 +7,16 @@ char *strtok_new(char * string, char const * delimiter);
 int main(int argc, char const *argv[])
 {
 
-  char * col_names[28];  //array which contains name of columns
+  char * col_names[28];  //array which contains name of columns for printing into the header
+  int dirSize = getDirSize (argv[3]); //gets number of different directories
+  char** dir = (char **) malloc (sizeof (char *) * dirSize); //Array of directories 
+  getDir(dir,argv[3],dirSize);// function that gets the array of directories
 
   int init = 0;         // counter for rows
   data total[5044];     // array for data structs
   char string[4000];    // stdin string buffer
+
+
 
   while(fgets(string,4000,stdin)!= NULL)   // loop to go thru all of input
   {
@@ -385,7 +391,7 @@ int main(int argc, char const *argv[])
   // now we need to read the arg column name and set comp_ptr to it
   int comp_ptr = 0;
   for(comp_ptr; comp_ptr < 28; comp_ptr++){
-    if(strcmp(col_names[0], argv[2])==0){
+    if(strcmp(col_names[comp_ptr], argv[2])==0){
       break;  //break out of the loop once we reach the col name we need
     }
   }
