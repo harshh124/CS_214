@@ -4,10 +4,39 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 int csv_line_count(FILE *fp);
+int validate_csv(FILE *fp);
 char *strip(char * input);
+void print(const char *name, const char *output);
+
+int validate_csv(FILE *fp) {
+
+	int count; // this will act as an index counter for each row
+	char *line = NULL;								// pointer for each line
+	size_t len = 0;
+	ssize_t read;
+
+	//this while loop will break each line into tokens
+	read = getline(&line, &len, fp);
+
+	//printf("Retrieved line of length %zu\n", read);
+	//printf("Entered string is %s \n", line);
+	char *p;
+	count = 0;
+	while ((p = strsep(&line, ",")) != NULL) {
+		count++;
+	}
+	//printf("value of count is %d\n",count);
+
+	if (read == 419 && count == 28) {	//vaild csv
+		return 1; //vaild
+	} else {
+		return 0; //invalid
+	}
+}
 
 char *strip(char * input) {
 
@@ -29,38 +58,37 @@ char *strip(char * input) {
 int csv_line_count(FILE *fp) {
 	int count;
 
-		char *line = NULL;								// pointer for each line
-		size_t len = 0;
-		ssize_t read;
-		int ctotal = 1;						// count the total number of tokens
+	char *line = NULL;								// pointer for each line
+	size_t len = 0;
+	ssize_t read;
+	int ctotal = 1;						// count the total number of tokens
 
-		//this while loop will break each line into tokens
-		while ((read = getline(&line, &len, fp)) != -1) {
-			char *p;
-			count = 1;
-			while ((p = strsep(&line, ",")) != NULL) {
-			}
-			ctotal++;
+	//this while loop will break each line into tokens
+	while ((read = getline(&line, &len, fp)) != -1) {
+		char *p;
+		count = 1;
+		while ((p = strsep(&line, ",")) != NULL) {
 		}
-		//printf("Ctotal = %d\n", ctotal);
+		ctotal++;
+	}
+	//printf("Ctotal = %d\n", ctotal);
 
-
-
-	// Close the file
-	fclose(fp);
 	return ctotal;
 }
-void print(const char *name, const char *output);
 
 void print(const char * name, const char *output) {
 
-	printf("Inputs: %s and %s\n", name, output);
+	//printf("Inputs: %s and %s\n", name, output);
 
 	DIR *dir;
 	FILE *fp;
 	int counter;
+	int valid; // 0 = no 1 = yes
 	struct dirent *entry;
 	char * wDir = (char *) malloc(sizeof(char) * 20); //save a copy of the working dir
+	pid_t child_pid; // for directory
+
+	int status;
 
 	if (!(dir = opendir(name)))
 		return;
@@ -74,17 +102,43 @@ void print(const char * name, const char *output) {
 				continue;
 			}
 
+			/*//get current working directory
 			char cwd[256];
 			if (getcwd(cwd, sizeof(cwd)) == NULL)
 				perror("getcwd() error");
 			else
-				printf("current working directory2 is: %s\n", cwd);
+				//printf("current working directory2 is: %s\n", cwd);*/
 
-			printf("[%s]\n", entry->d_name);
-			strcpy(wDir, entry->d_name);
+				// found a directory
+				child_pid = fork();
 
-			print(entry->d_name, output);
+			if (child_pid >= 0) /* fork succeeded */
+			{
+				if (child_pid == 0) /* fork() returns 0 for the child process */
+				{
+					//printf("child process!\n");
+
+					//printf("child PID =  %d, parent pid = %d\n", getpid(),getppid());
+					//	 printf("child PID =  %d, parent pid = %d\n", getpid(), getppid());
+					printf("[%s]\n", entry->d_name);
+					strcpy(wDir, entry->d_name);
+					print(entry->d_name, output);    // recursive call
+					_exit(0);
+				} else /* parent process */
+				{
+
+					//printf("parent process!\n");
+					//	 printf("parent PID =  %d, child pid = %d\n", getpid(), child_pid);
+					wait(&status); /* wait for child to exit, and store child's exit status */
+					//exit(0);  /* parent exits */
+				}
+			} else {
+				printf("error creating process\n");
+				exit(0);
+			}
+
 		} else {
+			pid_t child2_pid;					// for csv
 			char *point = entry->d_name;
 			if ((point = strrchr(point, '.')) != NULL) {
 				if (strcmp(point, ".csv") == 0) {
@@ -92,26 +146,64 @@ void print(const char * name, const char *output) {
 					printf("%s\n", entry->d_name);
 
 					//change the working directory
-					//chdir(name);
+					chdir(name);
 
 					//get working dir
 					char cwd[256];
 					if (getcwd(cwd, sizeof(cwd)) == NULL)
 						perror("getcwd() error");
 					else
-						printf("current working directory3 is: %s\n", cwd);
+						//	printf("current working directory3 is: %s\n", cwd);
 
-					//opening file
-					fp = fopen(entry->d_name, "r");
-					if (fp == NULL) {
-						printf("Could not open file %s\n", entry->d_name);
+						child2_pid = fork();
+
+					if (child2_pid >= 0) /* fork succeeded */
+					{
+						if (child2_pid == 0) /* fork() returns 0 for the child process */
+						{
+							//printf("child process!\n");
+							//printf("child PID =  %d, parent pid = %d\n", getpid(),getppid());
+							//printf("child PID =  %d, parent pid = %d\n", getpid(), getppid());
+
+							//opening file for checking if valid or invalid.
+							fp = fopen(entry->d_name, "r");
+							valid = validate_csv(fp);
+							if (valid) {
+								// Close the file
+								fclose(fp);
+								printf("The file is valid\n");
+
+								//opening file for getting the total lines
+								fp = fopen(entry->d_name, "r");
+								if (fp == NULL) {
+									printf("Could not open file %s\n",
+											entry->d_name);
+									exit(0);
+								}
+								//printf("The output name is %s\n",output);
+								counter = csv_line_count(fp);
+								printf("The file %s has %d lines\n ",
+										entry->d_name, counter);
+								// Close the file
+								fclose(fp);
+								_exit(0);
+
+							} else {
+								printf("The file is invalid\n");
+							}
+
+						} else /* parent process */
+						{
+							//printf("parent process!\n");
+							//	 printf("parent PID =  %d, child pid = %d\n", getpid(), child_pid);
+							wait(&status); /* wait for child to exit, and store child's exit status */
+							//exit(0);  /* parent exits */
+						}
+					} else {
+						printf("error creating process\n");
 						exit(0);
 					}
-					//printf("The output name is %s\n",output);
-					counter = csv_line_count(fp);
-					printf("The file %s has %d lines\n ", entry->d_name,
-							counter);
-					//fclose(fp);
+
 				}
 			}
 
@@ -172,6 +264,32 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	/*
+	 // manually check the csv_line_count function
+	 FILE *fp;
+	 int counter;
+	 char *file_name = "Dir2/mData.csv";
+	 int valid;  // 0 = no 1 = yes;
+	 fp = fopen(file_name, "r");
+	 if (fp == NULL) {
+	 printf("Could not open file \n");
+	 exit(0);
+	 }
+	 //printf("The output name is %s\n",output);
+	 counter = csv_line_count(fp);
+	 // Close the file
+	 fclose(fp);
+	 fp = fopen(file_name, "r");
+	 valid = validate_csv(fp);
+	 printf("The file has %d lines\n ", counter);
+	 if(valid){
+	 printf("The file is valid\n");
+	 }else {
+	 printf("The file is invalid\n");
+	 }
+	 // Close the file
+	 fclose(fp);
+	 */
 	print(wDir, oDir);
 
 	return 0;
